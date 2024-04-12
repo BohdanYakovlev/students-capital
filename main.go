@@ -5,23 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
 )
 
 type laptopData struct {
-	id        int
-	buyPrice  int
-	sellPrice int
+	id       int
+	buyPrice int
+	gains    int
 }
 type node struct {
-	up        *node
-	left      *node
-	right     *node
-	laptop    laptopData
-	profit    int
-	maxProfit int
+	up     *node
+	left   *node
+	right  *node
+	laptop laptopData
+	//profit    int
+	maxGains int
 }
 
 func (n *node) buildTree(laptops []laptopData) *node {
@@ -32,19 +33,18 @@ func (n *node) buildTree(laptops []laptopData) *node {
 	top := new(node)
 	middleIndex := len(laptops) / 2
 	top.laptop = laptops[middleIndex]
-	top.profit = top.laptop.sellPrice - top.laptop.buyPrice
-	top.maxProfit = top.profit
+	top.maxGains = top.laptop.gains
 
 	top.left = n.buildTree(laptops[:middleIndex])
 	top.right = n.buildTree(laptops[middleIndex+1:])
 
 	if top.right != nil {
 		top.right.up = top
-		top.maxProfit = max(top.maxProfit, top.right.maxProfit)
+		top.maxGains = max(top.maxGains, top.right.maxGains)
 	}
 	if top.left != nil {
 		top.left.up = top
-		top.maxProfit = max(top.maxProfit, top.left.maxProfit)
+		top.maxGains = max(top.maxGains, top.left.maxGains)
 	}
 
 	return top
@@ -53,6 +53,7 @@ func (n *node) buildTree(laptops []laptopData) *node {
 type studentController struct {
 	laptopsTree *node
 	capital     int
+	laptopLimit int
 }
 
 func (c *studentController) buildLaptopsTree(laptops []laptopData) {
@@ -63,17 +64,17 @@ func (c *studentController) buyLaptop(top *node) {
 	if top == nil {
 		return
 	}
-	c.capital += top.profit
-	top.profit = 0
+	c.capital += top.laptop.gains
+	top.laptop.gains = 0
 
 	tempTop := top
 	for tempTop != nil {
-		tempTop.maxProfit = tempTop.profit
+		tempTop.maxGains = tempTop.laptop.gains
 		if tempTop.left != nil {
-			tempTop.maxProfit = max(tempTop.maxProfit, tempTop.left.maxProfit)
+			tempTop.maxGains = max(tempTop.maxGains, tempTop.left.maxGains)
 		}
 		if tempTop.right != nil {
-			tempTop.maxProfit = max(tempTop.maxProfit, tempTop.right.maxProfit)
+			tempTop.maxGains = max(tempTop.maxGains, tempTop.right.maxGains)
 		}
 		tempTop = tempTop.up
 	}
@@ -81,13 +82,13 @@ func (c *studentController) buyLaptop(top *node) {
 
 func (c *studentController) getMostProfitLaptop(top *node) *node {
 
-	if top == nil || top.maxProfit == 0 {
+	if top == nil || top.maxGains == 0 {
 		return nil
 	}
-	if top.left != nil && top.maxProfit == top.left.maxProfit {
+	if top.left != nil && top.maxGains == top.left.maxGains {
 		return c.getMostProfitLaptop(top.left)
 	}
-	if top.right != nil && top.maxProfit == top.right.maxProfit {
+	if top.right != nil && top.maxGains == top.right.maxGains {
 		return c.getMostProfitLaptop(top.right)
 	}
 	return top
@@ -95,7 +96,7 @@ func (c *studentController) getMostProfitLaptop(top *node) *node {
 
 func (c *studentController) maxProfitLaptop(laptop1, laptop2 *node) *node {
 	if laptop1 != nil && laptop2 != nil {
-		if laptop1.profit > laptop2.profit {
+		if laptop1.laptop.gains > laptop2.laptop.gains {
 			return laptop1
 		}
 		return laptop2
@@ -116,10 +117,24 @@ func (c *studentController) buyMostProfitLaptopWithCapital(top *node) *node {
 	}
 
 	maxProfitLaptop := c.maxProfitLaptop(c.getMostProfitLaptop(top.left), c.buyMostProfitLaptopWithCapital(top.right))
-	if top.profit != 0 {
+	if top.laptop.gains != 0 {
 		return c.maxProfitLaptop(maxProfitLaptop, top)
 	}
 	return maxProfitLaptop
+}
+
+func (c *studentController) getResult() []laptopData {
+
+	var result []laptopData
+
+	for i := 0; i < c.laptopLimit; i++ {
+		laptopToBuy := c.buyMostProfitLaptopWithCapital(c.laptopsTree)
+		if laptopToBuy != nil {
+			c.buyLaptop(laptopToBuy)
+			result = append(result, laptopToBuy.laptop)
+		}
+	}
+	return result
 }
 
 func printTree(top *node) {
@@ -161,17 +176,21 @@ func handleRecord(mas *[]laptopData, record []string) {
 
 	laptop.id = len(*mas)
 	laptop.buyPrice, err = strconv.Atoi(record[0])
-	laptop.sellPrice, err = strconv.Atoi(record[1])
+	laptop.gains, err = strconv.Atoi(record[1])
 
 	if err != nil {
 		return
 	}
+
+	if laptop.buyPrice <= 0 || laptop.gains <= 0 {
+		return
+	}
+
 	*mas = append(*mas, laptop)
 }
 
 func readLaptopsFromCSV(path string) []laptopData {
 	reader, file := getReader(path)
-	defer file.Close()
 
 	//Read header of CSV file
 	record, _ := getRecord(reader)
@@ -185,29 +204,136 @@ func readLaptopsFromCSV(path string) []laptopData {
 			handleRecord(&result, record)
 		}
 	}
+	file.Close()
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].buyPrice < result[j].buyPrice
+	})
+
 	return result
 }
 
-func main() {
-	laptops := readLaptopsFromCSV("laptops.csv")
-	sort.Slice(laptops, func(i, j int) bool {
-		return laptops[i].buyPrice < laptops[j].buyPrice
-	})
-	var student studentController
-	student.buildLaptopsTree(laptops)
-	student.capital = 9
-	//printTree(student.laptopsTree)
-
-	for i := 0; i < 10; i++ {
-		a := student.buyMostProfitLaptopWithCapital(student.laptopsTree)
-		if a != nil {
-			student.buyLaptop(a)
+func megaTest() {
+	path := "laptops.csv"
+	for {
+		file, err := os.Create(path)
+		if err != nil {
+			panic(err)
 		}
-		//fmt.Println("///////////////////////////")
+
+		writer := csv.NewWriter(file)
+		for i := 0; i <= 1000; i++ {
+			r := rand.Intn(1000) + 1
+			writer.Write([]string{strconv.Itoa(r), strconv.Itoa(r + rand.Intn(100))})
+			writer.Flush()
+		}
+		n := rand.Intn(50)
+		fmt.Println("||||||||||||||||||||||||||||||||||||||||||||")
+		laptops := readLaptopsFromCSV("laptops.csv")
+		sort.Slice(laptops, func(i, j int) bool {
+			return laptops[i].buyPrice < laptops[j].buyPrice
+		})
+		var student studentController
+		student.buildLaptopsTree(laptops)
+		student.capital = 9
 		//printTree(student.laptopsTree)
-		fmt.Println(a)
-		//fmt.Println(student.capital)
-		//fmt.Println("///////////////////////////")
+
+		for i := 0; i < n; i++ {
+			a := student.buyMostProfitLaptopWithCapital(student.laptopsTree)
+			if a != nil {
+				student.buyLaptop(a)
+				fmt.Println(a.laptop)
+			}
+			//fmt.Println("///////////////////////////")
+			//printTree(student.laptopsTree)
+			//fmt.Println(student.capital)
+			//fmt.Println("///////////////////////////")
+		}
+		file.Close()
+		os.Remove(path)
+	}
+}
+
+func getConsoleArray(arrayLen int) []int {
+
+	var array []int
+
+	for i := 0; i < arrayLen; i++ {
+		var gains int
+		_, err := fmt.Scan(&gains)
+		if err != nil {
+			fmt.Println("Can not read data")
+			break
+		}
+
+		array = append(array, gains)
 	}
 
+	return array
+}
+
+func getLaptop(buyPrice int, gains int) laptopData {
+	var res laptopData
+	res.buyPrice = buyPrice
+	res.gains = gains
+	return res
+}
+
+func getLaptopsArray(buyPriceArray []int, gainsArray []int) []laptopData {
+	var res []laptopData
+	if len(buyPriceArray) != len(gainsArray) {
+		return res
+	}
+
+	for i := 0; i < len(buyPriceArray); i++ {
+		laptop := getLaptop(buyPriceArray[i], gainsArray[i])
+		laptop.id = i
+		res = append(res, laptop)
+	}
+
+	return res
+}
+
+func getParams() studentController {
+	var res studentController
+
+	fmt.Println("Enter laptops limit(N):")
+	_, err := fmt.Scan(&res.laptopLimit)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Enter the capital(C):")
+	_, err = fmt.Scan(&res.capital)
+	if err != nil {
+		panic(err)
+	}
+
+	var laptopsCount int
+	fmt.Println("Enter laptops count(K)")
+	_, err = fmt.Scan(&laptopsCount)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Enter laptops gains:")
+	gains := getConsoleArray(laptopsCount)
+
+	fmt.Println("Enter laptop buy prices:")
+	buyPrices := getConsoleArray(laptopsCount)
+
+	laptops := getLaptopsArray(gains, buyPrices)
+	res.buildLaptopsTree(laptops)
+
+	return res
+}
+
+func printResult(totalCapital int) {
+	fmt.Printf("Capital at the end of the summer: %d\n", totalCapital)
+}
+
+func main() {
+	student := getParams()
+	student.getResult()
+	printResult(student.capital)
 }
