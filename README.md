@@ -39,10 +39,10 @@ go run main.go
   - Array of prices for each laptop.
 
 ## Algorithm
-The application utilizes a modified binary search tree data structure to efficiently select the most profitable combination of laptops while considering the given constraints of the student's capital and the number of laptops to buy.
-  - Building the Tree: The program builds a binary search tree where each node represents a laptop. Laptops are sorted based on their buy prices.
-  - Buying Laptops: The application traverses the tree to select the most profitable laptops within the given capital constraint. It iteratively updates the student's capital and set gains of laptop to zero to ignore it in next iteration.
-  - Maximizing Profit: During the buying process, the program keeps track of the maximum gains achievable at each node. This information is used to efficiently select the most profitable laptops to buy.
+The application utilizes a modified binary search tree data structure to efficiently select the most profitable combination of laptops to buy.
+  - Building the Tree: The program builds a binary search tree for laptops which sorted buy prices.
+  - Buying Laptops: The program goes through the tree looking for subtrees that can be bought with current capital and selects the most valuable node from them. The gain of a purchased node becomes 0.
+  - Maximize capital: Buy most valuable laptop as long as the quantity does not exceed the maximum.
 
 ## Conclusion
 The Student’s Capital CLI application provides a robust solution for maximizing a student's capital during the summer by efficiently buying, fixing, and selling laptops. By leveraging a modified binary search tree algorithm, the program optimally selects the most profitable combination of laptops while adhering to the constraints of the student's capital and the number of laptops to buy. Feel free to reach out if you have any questions or encounter any issues while running the code.
