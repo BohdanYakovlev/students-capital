@@ -22,7 +22,14 @@ type node struct {
 	right  *node
 	laptop laptopData
 	//profit    int
-	maxGains int
+	maxGainLaptop *node
+}
+
+func (n *node) maxGain(first *node, second *node) *node {
+	if first.laptop.gains > second.laptop.gains {
+		return first
+	}
+	return second
 }
 
 func (n *node) buildTree(laptops []laptopData) *node {
@@ -33,18 +40,18 @@ func (n *node) buildTree(laptops []laptopData) *node {
 	top := new(node)
 	middleIndex := len(laptops) / 2
 	top.laptop = laptops[middleIndex]
-	top.maxGains = top.laptop.gains
+	top.maxGainLaptop = top
 
 	top.left = n.buildTree(laptops[:middleIndex])
 	top.right = n.buildTree(laptops[middleIndex+1:])
 
 	if top.right != nil {
 		top.right.up = top
-		top.maxGains = max(top.maxGains, top.right.maxGains)
+		top.maxGainLaptop = n.maxGain(top.maxGainLaptop, top.right.maxGainLaptop)
 	}
 	if top.left != nil {
 		top.left.up = top
-		top.maxGains = max(top.maxGains, top.left.maxGains)
+		top.maxGainLaptop = n.maxGain(top.maxGainLaptop, top.left.maxGainLaptop)
 	}
 
 	return top
@@ -69,29 +76,15 @@ func (c *studentController) buyLaptop(top *node) {
 
 	tempTop := top
 	for tempTop != nil {
-		tempTop.maxGains = tempTop.laptop.gains
+		tempTop.maxGainLaptop = tempTop
 		if tempTop.left != nil {
-			tempTop.maxGains = max(tempTop.maxGains, tempTop.left.maxGains)
+			tempTop.maxGainLaptop = tempTop.maxGain(tempTop.maxGainLaptop, tempTop.left.maxGainLaptop)
 		}
 		if tempTop.right != nil {
-			tempTop.maxGains = max(tempTop.maxGains, tempTop.right.maxGains)
+			tempTop.maxGainLaptop = tempTop.maxGain(tempTop.maxGainLaptop, tempTop.right.maxGainLaptop)
 		}
 		tempTop = tempTop.up
 	}
-}
-
-func (c *studentController) getMostProfitLaptop(top *node) *node {
-
-	if top == nil || top.maxGains == 0 {
-		return nil
-	}
-	if top.left != nil && top.maxGains == top.left.maxGains {
-		return c.getMostProfitLaptop(top.left)
-	}
-	if top.right != nil && top.maxGains == top.right.maxGains {
-		return c.getMostProfitLaptop(top.right)
-	}
-	return top
 }
 
 func (c *studentController) maxProfitLaptop(laptop1, laptop2 *node) *node {
@@ -115,8 +108,11 @@ func (c *studentController) buyMostProfitLaptopWithCapital(top *node) *node {
 	if top.laptop.buyPrice > c.capital {
 		return c.buyMostProfitLaptopWithCapital(top.left)
 	}
+	if top.left == nil {
+		return top.maxGainLaptop
+	}
 
-	maxProfitLaptop := c.maxProfitLaptop(c.getMostProfitLaptop(top.left), c.buyMostProfitLaptopWithCapital(top.right))
+	maxProfitLaptop := c.maxProfitLaptop(top.left.maxGainLaptop, c.buyMostProfitLaptopWithCapital(top.right))
 	if top.laptop.gains != 0 {
 		return c.maxProfitLaptop(maxProfitLaptop, top)
 	}
@@ -322,7 +318,7 @@ func getParams() studentController {
 	fmt.Println("Enter laptop buy prices:")
 	buyPrices := getConsoleArray(laptopsCount)
 
-	laptops := getLaptopsArray(gains, buyPrices)
+	laptops := getLaptopsArray(buyPrices, gains)
 	res.buildLaptopsTree(laptops)
 
 	return res
